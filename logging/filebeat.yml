@@ -1,0 +1,9 @@
+filebeat.inputs:
+  - type: filestream
+    id: lab3-app-logs
+    enabled: true
+    paths:
+      - /var/log/lab3/app.jsonl
+
+output.logstash:
+  hosts: ["logstash:5044"]

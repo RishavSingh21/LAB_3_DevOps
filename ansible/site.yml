@@ -1,0 +1,32 @@
+---
+- name: Configure the Lab 3 local observability stack
+  hosts: local
+  gather_facts: false
+  vars:
+    project_dir: "{{ playbook_dir }}/.."
+  tasks:
+    - name: Check that Docker Compose v2 is installed
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - version
+      changed_when: false
+      when: "'stop' not in ansible_run_tags"
+
+    - name: Start the Lab 3 services
+      community.docker.docker_compose_v2:
+        project_src: "{{ project_dir }}"
+        state: present
+        build: always
+      when: "'stop' not in ansible_run_tags"
+      tags:
+        - start
+
+    - name: Stop the Lab 3 services
+      community.docker.docker_compose_v2:
+        project_src: "{{ project_dir }}"
+        state: absent
+      when: "'stop' in ansible_run_tags"
+      tags:
+        - stop

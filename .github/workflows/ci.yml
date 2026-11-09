@@ -1,0 +1,105 @@
+name: Lab 3 CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: python -m pytest
+
+      - name: Bandit security scan
+        run: bandit -r app
+
+      - name: Audit Python dependencies
+        run: pip-audit -r requirements.txt
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Checkov Terraform scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          soft_fail: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check Terraform formatting
+        run: terraform -chdir=terraform fmt -check -recursive
+
+      - name: Validate Terraform
+        run: |
+          terraform -chdir=terraform init -backend=false
+          terraform -chdir=terraform validate
+
+      - name: Provision Docker network
+        run: terraform -chdir=terraform apply -auto-approve
+
+      - name: Install Ansible
+        run: python -m pip install ansible==10.7.0
+
+      - name: Install Ansible collection
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Check Ansible syntax
+        run: ansible-playbook -i ansible/inventory.ini ansible/site.yml --syntax-check
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Start demo app
+        run: docker compose up -d --build app
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install browser test dependencies
+        working-directory: browser-tests
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright browser
+        working-directory: browser-tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        working-directory: browser-tests
+        run: npm test
+
+      - name: Run k6 smoke test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: loadtest/smoke.js
+        env:
+          BASE_URL: http://127.0.0.1:5000
+
+      - name: Stop demo app
+        if: always()
+        run: docker compose down
+
+      - name: Destroy Docker network
+        if: always()
+        run: terraform -chdir=terraform destroy -auto-approve

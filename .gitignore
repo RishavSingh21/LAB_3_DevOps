@@ -1,0 +1,9 @@
+.terraform/
+terraform/terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+__pycache__/
+.pytest_cache/
+.venv/
+node_modules/
+playwright-report/
+test-results/
